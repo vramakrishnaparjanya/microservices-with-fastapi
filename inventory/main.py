@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis_om import get_redis_connection, HashModel
 import logging
 
+# Logging config
+FORMAT = "%(levelname)s:\t%(message)s"
+logging.basicConfig(format=FORMAT, level=logging.INFO)
+
 app = FastAPI()
 
 
@@ -24,6 +28,7 @@ redis = get_redis_connection(
     decode_responses=True
 )
 
+
 # Model object which we insert into redis
 class Product(HashModel):
     name: str
@@ -34,19 +39,13 @@ class Product(HashModel):
         database: redis
 
 
-
-@app.get("/products/getproducts")
-def getProducts():
-    try:
-        return [format(pk) for pk in Product.all_pks()]
-    except Exception as e:
-        logging.error(e)
-        logging.error("Unable to fetch the products at this time")
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 
 
 def format(pk: str):
     product = Product.get(pk)
-
     return {
         'id': product.pk,
         'name': product.name,
@@ -54,8 +53,29 @@ def format(pk: str):
         'quantity': product.quantity
     }
 
+# Fetches all the products
+@app.get('/products/getAllProducts')
+def getAllProducts():
+    try:
+        logging.info(Product.all_pks)
+        return [format(pk) for pk in Product.all_pks()]
+    except Exception as e:
+        logging.error(e)
+        logging.error("Unable to fetch the products at this time")
 
 
+# Fetches product by id
+@app.get("/products/getProductById/{pk}")
+def getProductById(pk: str):
+    try:
+        getProd = Product.get(pk)
+        return getProd
+    except Exception as e:
+        logging.error(e)
+        logging.error("Unable to get the product for this id")
+
+
+# Creates a product
 @app.post("/products/createProduct")
 def createProduct(product: Product):
     try:
@@ -65,7 +85,7 @@ def createProduct(product: Product):
         logging.error("Could not save the product")
 
 
-
+# Deletes a product
 @app.get("/products/deleteProduct/{pk}")
 def deleteProduct(pk: str):
     try:
@@ -75,12 +95,4 @@ def deleteProduct(pk: str):
     except Exception as e:
         logging.error(e)
         logging.error("Could not delete the product. please try later")
-
-
-
-
-
-
-
-
 
