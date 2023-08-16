@@ -25,8 +25,8 @@ app.add_middleware(
 
 # Ideally should be a different database for a different microservice
 redis = get_redis_connection(
-    host="redis-10223.c8.us-east-1-2.ec2.cloud.redislabs.com:10223",
-    port=123456,
+    host="redis-10223.c8.us-east-1-2.ec2.cloud.redislabs.com",
+    port=10223,
     password="i5hLAg0mYAReM3XT5MEac7GWrgpAr9kg",
     decode_responses=True
 )
@@ -38,10 +38,35 @@ class Order(HashModel):
     fee: float # 20% of price
     total: float # total = price + fee
     quantity: int
-    status: str  # ("PENDING", "REFUNDED", "COMPLETED")
+    status: str  # ("PENDING", "REFUNDED", "COMPLETED", "CANCELLED")
 
     class Meta:
         database: redis
+
+
+def format(pk: str):
+    order = Order.get(pk)
+    return {
+        'id': order.pk,
+        'product_id': order.product_id,
+        'fee': order.fee,
+        'price': order.price,
+        'total': order.total,
+        'status': order.status,
+        'quantity': order.quantity
+    }
+
+
+# Fetches all the orders
+@app.get('/orders/getAllOrders')
+def getAllOrders():
+    try:
+        logging.info(Order.all_pks)
+        return [format(pk) for pk in Order.all_pks()]
+    except Exception as e:
+        logging.error(e)
+        logging.error("Unable to fetch the products at this time")
+
 
 
 @app.get('/orders/getOrder/{pk}')
@@ -60,10 +85,11 @@ def getOrderById(pk : str):
 async def createOrder(request: Request, background_tasks: BackgroundTasks):
 
     requestBody = await request.json()
-    product_key = str(requestBody["id"])
+    product_key = requestBody["id"]
+    product_quantity = requestBody["quantity"]
 
-    logging.info("Product Key is == "+product_key)
-    url = 'http://127.0.0.1:8000/products/getProductById/'+product_key
+    logging.info("Product Key is == "+str(product_key))
+    url = 'http://127.0.0.1:8000/products/getProductById/'+str(product_key)
     logging.info("Inventory endpoint hit =="+url)
 
 
@@ -77,11 +103,11 @@ async def createOrder(request: Request, background_tasks: BackgroundTasks):
     inventory_product = inventory_response.json()
 
     order = Order(
-        product_id= requestBody['id'],
+        product_id= product_key,
         price= inventory_product['price'],
         fee= 0.2 * inventory_product['price'],
         total= 1.2 * inventory_product['price'],
-        quantity= inventory_product['quantity'],
+        quantity= product_quantity,
         status='PENDING'
     )
 
@@ -125,4 +151,13 @@ def redis_order_completed_event(order: Order):
 
 
 
-
+# Deletes an order with order_pk
+@app.get("/orders/deleteOrderByOrderPk/{pk}")
+def deleteOrder(pk: str):
+    try:
+        deletedCount = Order.delete(pk)
+        logging.info("Items deleted : "+str(deletedCount))
+        return deletedCount
+    except Exception as e:
+        logging.error(e)
+        logging.error("Could not delete the product. please try later")
