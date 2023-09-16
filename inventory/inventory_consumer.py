@@ -39,10 +39,11 @@ while True:
                         # There are not enough products in inventory so, cancel the order
                         logging.error("Product Quantity not sufficient !! Can't proceed !!")
                         
-                        #Yet to write a listener to this event
+                        #Listener for ORDER_CANCELLED_EVENT in payment_order_cancel_consumer.py
                         redis.xadd('ORDER_CANCELLED_EVENT', order_obj, '*')
 
                 except:
+                    #Listener for ORDER_REFUND_EVENT in payment_refund_consumer.py
                     redis.xadd('ORDER_REFUND_EVENT', order_obj, '*')
 
 
